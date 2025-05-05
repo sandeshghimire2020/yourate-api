@@ -1,0 +1,3 @@
+name: yourate-webapp
+runtime: nodejs
+description: Serverless backend for YouTube creator search using Pulumi AWS Lambda

@@ -1,0 +1,19 @@
+{
+  "name": "yourate-webapp",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "deploy": "pulumi up --yes"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@pulumi/aws": "^6.79.1",
+    "@pulumi/pulumi": "^3.167.0",
+    "aws-sdk": "^2.1692.0",
+    "axios": "^1.9.0"
+  }
+}

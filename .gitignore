@@ -1,0 +1,41 @@
+# Node dependencies
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Pulumi files
+.pulumi/
+Pulumi.*.yaml
+!Pulumi.yaml
+
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+*.pem
+.secrets
+
+# Build and distribution files
+dist/
+build/
+.DS_Store
+
+# AWS credentials
+.aws/
+credentials
+.aws-sam/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
