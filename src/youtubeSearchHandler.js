@@ -1,4 +1,4 @@
-const axios = require('aws-sdk/lib/axios-config').default;
+const axios = require('axios');
 const AWS = require('aws-sdk');
 const dynamoDB = new AWS.DynamoDB.DocumentClient();
 const TABLE_NAME = process.env.RATINGS_TABLE_NAME;
@@ -9,6 +9,11 @@ const TABLE_NAME = process.env.RATINGS_TABLE_NAME;
  */
 exports.handler = async (event) => {
     console.log('Received event:', JSON.stringify(event));
+    console.log('Environment variables:', JSON.stringify({
+        TABLE_NAME: process.env.RATINGS_TABLE_NAME,
+        YOUTUBE_API_KEY_EXISTS: !!process.env.YOUTUBE_API_KEY,
+        YOUTUBE_API_KEY_LENGTH: process.env.YOUTUBE_API_KEY ? process.env.YOUTUBE_API_KEY.length : 0
+    }));
     
     try {
         // Parse query parameters from the event, handling different API Gateway event formats
@@ -75,17 +80,25 @@ exports.handler = async (event) => {
         
         return formatResponse(200, result);
     } catch (error) {
-        console.error('Error searching YouTube creators:', error);
+        console.error('Error searching YouTube creators:', error.message);
+        console.error('Error details:', error.response?.data || 'No response data');
         
         // Handle errors from YouTube API
         if (error.response) {
             return formatResponse(
                 error.response.status,
-                { error: error.response.data.error || 'YouTube API error' }
+                { 
+                    error: 'Error from YouTube API', 
+                    message: error.message,
+                    details: error.response.data
+                }
             );
         }
         
-        return formatResponse(500, { error: 'Internal server error', message: error.message });
+        return formatResponse(500, { 
+            error: 'Internal server error', 
+            message: error.message || 'Unknown error' 
+        });
     }
 };
 

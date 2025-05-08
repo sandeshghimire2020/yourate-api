@@ -1,6 +1,19 @@
 const pulumi = require('@pulumi/pulumi');
 const aws = require('@pulumi/aws');
 const path = require('path');
+const fs = require('fs');
+const dotenv = require('dotenv');
+
+// Load environment variables from .env file
+try {
+    const envConfig = dotenv.parse(fs.readFileSync('.env'));
+    for (const k in envConfig) {
+        process.env[k] = envConfig[k];
+    }
+    console.log('Environment variables loaded from .env file');
+} catch (error) {
+    console.log('No .env file found or error loading it. Using existing env variables.');
+}
 
 // Create an AWS resource group
 const lambdaRole = new aws.iam.Role('youtubeSearchLambdaRole', {
@@ -69,26 +82,23 @@ const rolePolicyAttachment = new aws.iam.RolePolicyAttachment('lambdaDynamoDBPol
 
 // Create Lambda function for YouTube Search
 const youtubeSearchFunction = new aws.lambda.Function('youtubeSearchFunction', {
-    code: new pulumi.asset.AssetArchive({
-        '.': new pulumi.asset.FileArchive('./dist'),
-    }),
+    code: new pulumi.asset.FileArchive('./dist/lambda-package.zip'),
     role: lambdaRole.arn,
-    handler: 'index.handler',
+    handler: 'youtubeSearchHandler.handler',
     runtime: 'nodejs18.x',
     timeout: 30,
     memorySize: 256,
     environment: {
         variables: {
             RATINGS_TABLE_NAME: creatorRatingsTable.name,
+            YOUTUBE_API_KEY: process.env.YOUTUBE_API_KEY || '',
         },
     },
 });
 
 // Create Lambda function for ratings
 const ratingsLambdaFunction = new aws.lambda.Function('ratingsFunction', {
-    code: new pulumi.asset.AssetArchive({
-        '.': new pulumi.asset.FileArchive('./dist'),
-    }),
+    code: new pulumi.asset.FileArchive('./dist/lambda-package.zip'),
     role: lambdaRole.arn,
     handler: 'ratings.handler',
     runtime: 'nodejs18.x',
@@ -103,9 +113,7 @@ const ratingsLambdaFunction = new aws.lambda.Function('ratingsFunction', {
 
 // Create Lambda function for creator profile details
 const creatorProfileFunction = new aws.lambda.Function('creatorProfileFunction', {
-    code: new pulumi.asset.AssetArchive({
-        '.': new pulumi.asset.FileArchive('./dist'),
-    }),
+    code: new pulumi.asset.FileArchive('./dist/lambda-package.zip'),
     role: lambdaRole.arn,
     handler: 'creatorProfile.handler',
     runtime: 'nodejs18.x',
@@ -114,6 +122,7 @@ const creatorProfileFunction = new aws.lambda.Function('creatorProfileFunction',
     environment: {
         variables: {
             RATINGS_TABLE_NAME: creatorRatingsTable.name,
+            YOUTUBE_API_KEY: process.env.YOUTUBE_API_KEY || '',
         },
     },
 });
@@ -253,7 +262,7 @@ const optionsIntegrationResponse = new aws.apigateway.IntegrationResponse('optio
     restApi: api.id,
     resourceId: ratingsResource.id,
     httpMethod: optionsRatingsMethod.httpMethod,
-    statusCode: '200',
+    statusCode: optionsMethodResponse.statusCode,
     responseParameters: {
         'method.response.header.Access-Control-Allow-Headers': "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
         'method.response.header.Access-Control-Allow-Methods': "'GET,POST,OPTIONS'",
@@ -262,7 +271,7 @@ const optionsIntegrationResponse = new aws.apigateway.IntegrationResponse('optio
     responseTemplates: {
         'application/json': ''
     },
-    selectionPattern: ""
+    integrationId: optionsRatingsIntegration.id,
 });
 
 // Create Lambda permissions

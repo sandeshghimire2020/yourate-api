@@ -10,6 +10,13 @@ const TABLE_NAME = process.env.RATINGS_TABLE_NAME;
  */
 exports.handler = async (event) => {
     try {
+        console.log('Event received:', JSON.stringify(event));
+        console.log('Environment variables:', JSON.stringify({
+            TABLE_NAME: process.env.RATINGS_TABLE_NAME,
+            YOUTUBE_API_KEY_EXISTS: !!process.env.YOUTUBE_API_KEY,
+            YOUTUBE_API_KEY_LENGTH: process.env.YOUTUBE_API_KEY ? process.env.YOUTUBE_API_KEY.length : 0
+        }));
+        
         // Parse query parameters from the event
         const queryParams = event.queryStringParameters || {};
         const channelId = queryParams.channelId;
@@ -18,14 +25,21 @@ exports.handler = async (event) => {
             return formatResponse(400, { error: 'Channel ID (channelId) is required' });
         }
 
-        // YouTube API key (consider using env variables or SSM for production)
-        const API_KEY = 'AIzaSyBffyuvOCf5PzbE-ZZri7cXB9fzQO2BtZA';
+        // Get YouTube API key from environment variables
+        const API_KEY = process.env.YOUTUBE_API_KEY;
+        if (!API_KEY) {
+            console.error('YouTube API key not configured');
+            return formatResponse(500, { error: 'Server configuration error - API key missing' });
+        }
         
         try {
             // Get channel information from YouTube API
+            console.log(`Attempting to fetch channel details for ${channelId}`);
             const channelData = await getChannelDetails(channelId, API_KEY);
+            console.log('Channel data response:', JSON.stringify(channelData));
             
             // Get all ratings and comments for this channel from DynamoDB
+            console.log(`Fetching ratings for channel ${channelId} from table ${TABLE_NAME}`);
             const ratingsData = await getChannelRatings(channelId, queryParams.limit, queryParams.nextToken);
             
             // Combine the data

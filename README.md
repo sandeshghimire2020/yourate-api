@@ -1,97 +1,40 @@
-# YouRate - YouTube Creator Rating Backend
+# YouRate API
 
-A serverless backend for rating and reviewing YouTube creators, built with AWS Lambda, API Gateway, and DynamoDB, deployed using Pulumi.
+A serverless API for searching, rating, and viewing YouTube creators built with AWS Lambda, API Gateway, and DynamoDB.
 
-## Features
+## Overview
 
-- **YouTube Creator Search**: Search for YouTube creators by name and get their ratings
-- **Ratings & Comments**: Add and retrieve ratings and comments for YouTube creators
-- **Creator Profiles**: Get detailed information about a creator including their YouTube stats and community ratings
-- **Email Verification**: Prevent duplicate ratings from the same user for a channel
-- **Cross-Origin Support**: Full CORS support for frontend integration
-- **Pagination Support**: Handle large amounts of ratings with efficient pagination
-- **Serverless Architecture**: Fully serverless backend that scales automatically
+YouRate API allows users to:
+- Search for YouTube channels/creators
+- View detailed information about YouTube creators
+- Submit and retrieve ratings and comments for YouTube creators
 
-## API Endpoints
+The application is built using serverless architecture on AWS with infrastructure as code using Pulumi.
 
-### Search for YouTube Creators
-- **Endpoint**: `GET /search`
-- **Parameters**: 
-  - `q` (required): Search query
-  - `maxResults` (optional): Maximum number of results to return (default: 5)
-- **Example Request**: 
-  ```
-  GET https://x22ulkpal2.execute-api.us-east-1.amazonaws.com/v1/search?q=mrbeast&maxResults=5
-  ```
-- **Response**: YouTube search results enriched with ratings data (if available)
+## Tech Stack
 
-### Get or Add Ratings
-- **Endpoint**: `GET /ratings` or `POST /ratings`
-- **GET Parameters**:
-  - `channelId` (required): YouTube channel ID
-- **Example GET Request**: 
-  ```
-  GET https://x22ulkpal2.execute-api.us-east-1.amazonaws.com/v1/ratings?channelId=UCX6OQ3DkcsbYNE6H8uQQuVA
-  ```
-- **POST Body**:
-  ```json
-  {
-    "channelId": "UCX6OQ3DkcsbYNE6H8uQQuVA",
-    "channelTitle": "MrBeast",
-    "rating": 5,
-    "comment": "Great content, very entertaining!",
-    "email": "user@example.com"
-  }
-  ```
-- **Response**: Ratings and comments for the specified channel
-- **Note**: The email field is used to prevent duplicate ratings from the same user for a specific channel
+- **Backend**: AWS Lambda (Node.js 18.x)
+- **API**: AWS API Gateway
+- **Database**: AWS DynamoDB
+- **Infrastructure**: Pulumi (Infrastructure as Code)
+- **Language**: JavaScript
+- **Dependencies**: axios, aws-sdk, dotenv
 
-### Get Creator Profile
-- **Endpoint**: `GET /profile`
-- **Parameters**:
-  - `channelId` (required): YouTube channel ID
-  - `limit` (optional): Maximum number of comments to return (default: 20)
-  - `nextToken` (optional): Pagination token for additional results
-- **Example Request**: 
-  ```
-  GET https://x22ulkpal2.execute-api.us-east-1.amazonaws.com/v1/profile?channelId=UCX6OQ3DkcsbYNE6H8uQQuVA&limit=3
-  ```
-- **Response**: Combined YouTube channel data and community ratings/comments
-
-## Architecture
-
-### AWS Services
-
-- **Lambda**: Serverless functions for handling API requests
-- **API Gateway**: RESTful API endpoints with CORS support
-- **DynamoDB**: NoSQL database for storing ratings and comments
-- **CloudWatch**: Monitoring and logging
-
-### Project Structure
-
-- `src/`: Source code for Lambda functions
-  - `youtubeSearchHandler.js`: YouTube search functionality
-  - `ratings.js`: Ratings management with email verification
-  - `creatorProfile.js`: Creator profile integration
-- `dist/`: Distribution code deployed to Lambda
-- `index.js`: Pulumi infrastructure definition
-- `checkLogs.js`: Utility for checking CloudWatch logs
-
-## Setup and Deployment
+## Setup Instructions
 
 ### Prerequisites
 
-- Node.js (v14+)
-- AWS CLI configured
+- Node.js 16.x or higher
+- AWS account and configured AWS CLI credentials
 - Pulumi CLI installed
 - YouTube Data API key
 
-### Installation
+### Environment Setup
 
 1. Clone the repository:
    ```
-   git clone https://github.com/yourusername/yourate-webapp.git
-   cd yourate-webapp
+   git clone https://github.com/yourusername/yourate-api.git
+   cd yourate-api
    ```
 
 2. Install dependencies:
@@ -99,99 +42,118 @@ A serverless backend for rating and reviewing YouTube creators, built with AWS L
    npm install
    ```
 
-3. Create a distribution directory:
+3. Create a `.env` file based on the sample:
    ```
-   mkdir -p dist
-   cp src/* dist/
-   cd dist && npm install axios
-   cd ..
+   cp .env.sample .env
    ```
 
-4. Update the YouTube API key in the source files (or use environment variables)
+4. Update the `.env` file with your YouTube API key:
+   ```
+   # YouTube API Credentials
+   YOUTUBE_API_KEY=your_youtube_api_key_here
 
-5. Deploy using Pulumi:
-   ```
-   pulumi up
+   # AWS Configuration
+   AWS_REGION=us-east-1
+   RATINGS_TABLE_NAME=creatorRatings
+
+   # Other Configuration
+   API_STAGE_NAME=v1
    ```
 
-6. Note the API endpoints from the Pulumi output:
+### Deployment
+
+1. Build the Lambda package with dependencies:
    ```
-   searchApiUrl    : "https://x22ulkpal2.execute-api.us-east-1.amazonaws.com/v1/search"
-   ratingsApiUrl   : "https://x22ulkpal2.execute-api.us-east-1.amazonaws.com/v1/ratings"
-   profileApiUrl   : "https://x22ulkpal2.execute-api.us-east-1.amazonaws.com/v1/profile"
+   npm run build
    ```
+
+2. Deploy the infrastructure:
+   ```
+   npm run deploy
+   ```
+
+3. After deployment, Pulumi will output the API endpoints.
+
+## API Endpoints
+
+The API provides the following endpoints:
+
+### Search YouTube Creators
+- **Endpoint**: `/search`
+- **Method**: GET
+- **Parameters**:
+  - `q`: (required) Search query term
+  - `maxResults`: (optional) Number of results to return (default: 10)
+- **Example**: `GET /search?q=tech&maxResults=5`
+
+### Get Creator Profile
+- **Endpoint**: `/profile`
+- **Method**: GET
+- **Parameters**:
+  - `channelId`: (required) YouTube channel ID
+- **Example**: `GET /profile?channelId=UC_x5XG1OV2P6uZZ5FSM9Ttw`
+
+### Get Ratings
+- **Endpoint**: `/ratings`
+- **Method**: GET
+- **Parameters**:
+  - `channelId`: (required) YouTube channel ID
+  - `limit`: (optional) Number of ratings to return
+  - `nextToken`: (optional) Pagination token
+- **Example**: `GET /ratings?channelId=UC_x5XG1OV2P6uZZ5FSM9Ttw&limit=20`
+
+### Submit Rating
+- **Endpoint**: `/ratings`
+- **Method**: POST
+- **Body**:
+  ```json
+  {
+    "channelId": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+    "rating": 5,
+    "comment": "Great educational content!"
+  }
+  ```
+- **Required fields**: channelId, rating (1-5)
+- **Optional fields**: comment
 
 ## Development
 
-### Local Testing
+### Project Structure
 
-For testing Lambda functions locally:
+- **src/**: Contains Lambda function handlers
+  - `youtubeSearchHandler.js`: Handles YouTube channel search requests
+  - `creatorProfile.js`: Handles creator profile data requests
+  - `ratings.js`: Handles rating submissions and retrievals
+- **build.js**: Script to bundle Lambda functions with dependencies
+- **index.js**: Pulumi infrastructure code
+- **.env**: Environment variables (not committed to repo)
 
-```js
-const event = { 
-  queryStringParameters: { 
-    q: 'mrbeast',
-    maxResults: 5
-  }
-};
+### Local Development
 
-const result = await handler(event);
-console.log(JSON.stringify(result, null, 2));
+For local testing of Lambda functions, you can use the AWS SAM CLI or directly invoke functions using the AWS CLI.
+
+Example using AWS CLI:
+```
+aws lambda invoke --function-name youtubeSearchFunction --payload '{"queryStringParameters":{"q":"tech"}}' output.json
 ```
 
-### Testing POST Requests
+## Troubleshooting
 
-For testing POST requests to the ratings endpoint:
+Common issues:
 
-```bash
-curl -X POST \
-  https://x22ulkpal2.execute-api.us-east-1.amazonaws.com/v1/ratings \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "channelId": "UCX6OQ3DkcsbYNE6H8uQQuVA",
-    "channelTitle": "MrBeast",
-    "rating": 4,
-    "comment": "Amazing quality videos",
-    "email": "test@example.com"
-  }'
-```
+1. **502 Gateway Errors**: Usually caused by Lambda execution errors. Check CloudWatch logs.
 
-### Debugging
+2. **Missing Dependencies**: Ensure build process correctly bundles dependencies like axios:
+   ```
+   npm run build
+   ```
 
-Use the included `checkLogs.js` script to view CloudWatch logs:
-
-```
-node checkLogs.js
-```
-
-### Deployment Script
-
-```
-npm run deploy
-```
-
-## CORS Support
-
-The API includes comprehensive CORS support to enable cross-origin requests from web applications:
-- All endpoints support OPTIONS preflight requests
-- Headers include proper Access-Control-Allow-* configurations
-- API Gateway is configured with REGIONAL endpoint type
-- Lambda responses include CORS headers for consistent behavior
-
-## Future Improvements
-
-- Add authentication for rating submissions
-- Implement rate limiting to prevent abuse
-- Add caching for frequently accessed creators
-- Create a frontend web application
-- Add trending creators based on ratings
-- Implement email verification via one-time links
+3. **API Key Issues**: Verify your YouTube API key is correct and has proper permissions.
 
 ## License
 
-MIT
+This project is licensed under the MIT License - see the LICENSE file for details.
 
----
+## Contributing
 
-Updated: May 5, 2025
-Built with ❤️ using AWS Serverless and Pulumi
+Contributions are welcome! Please feel free to submit a Pull Request.
