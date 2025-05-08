@@ -127,6 +127,22 @@ const creatorProfileFunction = new aws.lambda.Function('creatorProfileFunction',
     },
 });
 
+// Create Lambda function for top creators sorted by rating
+const topCreatorsFunction = new aws.lambda.Function('topCreatorsFunction', {
+    code: new pulumi.asset.FileArchive('./dist/lambda-package.zip'),
+    role: lambdaRole.arn,
+    handler: 'topCreators.handler',
+    runtime: 'nodejs18.x',
+    timeout: 30,
+    memorySize: 256,
+    environment: {
+        variables: {
+            RATINGS_TABLE_NAME: creatorRatingsTable.name,
+            YOUTUBE_API_KEY: process.env.YOUTUBE_API_KEY || '',
+        },
+    },
+});
+
 // Create API Gateway for all endpoints
 const api = new aws.apigateway.RestApi('youtubeApi', {
     description: 'YouTube Creator API',
@@ -153,6 +169,13 @@ const profileResource = new aws.apigateway.Resource('profileResource', {
     restApi: api.id,
     parentId: api.rootResourceId,
     pathPart: 'profile',
+});
+
+// Create resource for top creators endpoint
+const topCreatorsResource = new aws.apigateway.Resource('topCreatorsResource', {
+    restApi: api.id,
+    parentId: api.rootResourceId,
+    pathPart: 'top-creators',
 });
 
 // Create methods for each endpoint
@@ -192,6 +215,14 @@ const getProfileMethod = new aws.apigateway.Method('getProfileMethod', {
     authorization: 'NONE',
 });
 
+// Add method for top creators endpoint
+const getTopCreatorsMethod = new aws.apigateway.Method('getTopCreatorsMethod', {
+    restApi: api.id,
+    resourceId: topCreatorsResource.id,
+    httpMethod: 'GET',
+    authorization: 'NONE',
+});
+
 // Create integrations for each method
 const searchIntegration = new aws.apigateway.Integration('searchIntegration', {
     restApi: api.id,
@@ -200,6 +231,16 @@ const searchIntegration = new aws.apigateway.Integration('searchIntegration', {
     integrationHttpMethod: 'POST',
     type: 'AWS_PROXY',
     uri: youtubeSearchFunction.invokeArn,
+});
+
+// Add integration for top creators endpoint
+const topCreatorsIntegration = new aws.apigateway.Integration('topCreatorsIntegration', {
+    restApi: api.id,
+    resourceId: topCreatorsResource.id,
+    httpMethod: getTopCreatorsMethod.httpMethod,
+    integrationHttpMethod: 'POST',
+    type: 'AWS_PROXY',
+    uri: topCreatorsFunction.invokeArn,
 });
 
 const getRatingsIntegration = new aws.apigateway.Integration('getRatingsIntegration', {
@@ -296,6 +337,14 @@ const profileLambdaPermission = new aws.lambda.Permission('profileLambdaPermissi
     sourceArn: pulumi.interpolate`${api.executionArn}/*/*`,
 });
 
+// Add Lambda permission for top creators function
+const topCreatorsLambdaPermission = new aws.lambda.Permission('topCreatorsLambdaPermission', {
+    action: 'lambda:InvokeFunction',
+    function: topCreatorsFunction,
+    principal: 'apigateway.amazonaws.com',
+    sourceArn: pulumi.interpolate`${api.executionArn}/*/*`,
+});
+
 // Create API deployment
 const deployment = new aws.apigateway.Deployment('apiDeployment', {
     restApi: api.id,
@@ -309,6 +358,8 @@ const deployment = new aws.apigateway.Deployment('apiDeployment', {
             postRatingsIntegration.id,
             getProfileMethod.id,
             profileIntegration.id,
+            getTopCreatorsMethod.id,
+            topCreatorsIntegration.id,
             optionsRatingsMethod.id,
             optionsRatingsIntegration.id,
             optionsMethodResponse.id,
@@ -325,6 +376,8 @@ const deployment = new aws.apigateway.Deployment('apiDeployment', {
         postRatingsIntegration,
         getProfileMethod,
         profileIntegration,
+        getTopCreatorsMethod,
+        topCreatorsIntegration,
         optionsRatingsMethod,
         optionsRatingsIntegration,
         optionsMethodResponse,
@@ -355,4 +408,5 @@ const ratingsResourceCors = new aws.apigateway.MethodSettings("ratingsResourceCo
 exports.searchApiUrl = pulumi.interpolate`${stage.invokeUrl}/search`;
 exports.ratingsApiUrl = pulumi.interpolate`${stage.invokeUrl}/ratings`;
 exports.profileApiUrl = pulumi.interpolate`${stage.invokeUrl}/profile`;
+exports.topCreatorsApiUrl = pulumi.interpolate`${stage.invokeUrl}/top-creators`;
 exports.ratingsTableName = creatorRatingsTable.name;

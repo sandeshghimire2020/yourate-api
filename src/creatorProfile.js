@@ -139,9 +139,27 @@ async function getChannelRatings(channelId, limit = 20, nextToken = null) {
             const totalRatings = result.Items.reduce((sum, item) => sum + item.rating, 0);
             const averageRating = totalRatings / result.Items.length;
             
-            // Format response with pagination
+            // Extract additional creator info from the first item or any item that has it
+            let thumbnailUrl = '';
+            let description = '';
+            let profilePicture = null;
+            let channelTitle = '';
+            
+            // Look for the most complete creator information across all ratings
+            result.Items.forEach(item => {
+                if (item.thumbnailUrl && !thumbnailUrl) thumbnailUrl = item.thumbnailUrl;
+                if (item.description && !description) description = item.description;
+                if (item.profilePicture && !profilePicture) profilePicture = item.profilePicture;
+                if (item.channelTitle && !channelTitle) channelTitle = item.channelTitle;
+            });
+            
+            // Format response with pagination and creator details
             const response = {
                 channelId: channelId,
+                channelTitle: channelTitle,
+                thumbnailUrl: thumbnailUrl,
+                profilePicture: profilePicture,
+                description: description,
                 averageRating: parseFloat(averageRating.toFixed(1)),
                 totalRatings: result.Items.length,
                 comments: result.Items.map(item => ({
