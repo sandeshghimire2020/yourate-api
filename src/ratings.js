@@ -134,9 +134,24 @@ async function handlePostRating(event) {
         email: email || ''
     };
     
-    // Add optional thumbnail URL if provided
+    // Add additional creator information if provided
     if (body.thumbnailUrl) {
         item.thumbnailUrl = body.thumbnailUrl;
+    }
+    
+    if (body.description) {
+        item.description = body.description;
+    }
+    
+    // Add optional profile picture URLs at different resolutions if provided
+    if (body.profilePicture) {
+        if (typeof body.profilePicture === 'object') {
+            // Store the entire thumbnails object if it's provided as a structured object
+            item.profilePicture = body.profilePicture;
+        } else {
+            // If it's a string, store it as the default URL
+            item.profilePicture = { default: body.profilePicture };
+        }
     }
     
     // Store the rating in DynamoDB

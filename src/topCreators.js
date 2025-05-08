@@ -48,7 +48,7 @@ async function getTopCreators(limit = 10, nextToken = null, minRatings = DEFAULT
     // Initialize scan parameters
     const scanParams = {
         TableName: TABLE_NAME,
-        ProjectionExpression: 'channelId, channelTitle, thumbnailUrl, rating'
+        ProjectionExpression: 'channelId, channelTitle, thumbnailUrl, description, profilePicture, rating'
     };
 
     // Add pagination token if provided
@@ -64,13 +64,15 @@ async function getTopCreators(limit = 10, nextToken = null, minRatings = DEFAULT
         const channelMap = {};
         
         ratingData.Items.forEach(item => {
-            const { channelId, rating, channelTitle, thumbnailUrl } = item;
+            const { channelId, rating, channelTitle, thumbnailUrl, description, profilePicture } = item;
             
             if (!channelMap[channelId]) {
                 channelMap[channelId] = {
                     channelId,
                     channelTitle: channelTitle || '',
                     thumbnailUrl: thumbnailUrl || '',
+                    description: description || '',
+                    profilePicture: profilePicture || null,
                     ratings: [],
                     totalRatings: 0
                 };
@@ -78,6 +80,24 @@ async function getTopCreators(limit = 10, nextToken = null, minRatings = DEFAULT
             
             channelMap[channelId].ratings.push(rating);
             channelMap[channelId].totalRatings++;
+            
+            // Keep updating channel info from latest ratings in case it changes
+            // Only update if values exist and are non-empty
+            if (channelTitle && !channelMap[channelId].channelTitle) {
+                channelMap[channelId].channelTitle = channelTitle;
+            }
+            
+            if (thumbnailUrl && !channelMap[channelId].thumbnailUrl) {
+                channelMap[channelId].thumbnailUrl = thumbnailUrl;
+            }
+            
+            if (description && !channelMap[channelId].description) {
+                channelMap[channelId].description = description;
+            }
+            
+            if (profilePicture && !channelMap[channelId].profilePicture) {
+                channelMap[channelId].profilePicture = profilePicture;
+            }
         });
         
         // Calculate average rating for each channel and filter by minimum ratings threshold
@@ -91,6 +111,13 @@ async function getTopCreators(limit = 10, nextToken = null, minRatings = DEFAULT
                     channelId: channel.channelId,
                     channelTitle: channel.channelTitle,
                     thumbnailUrl: channel.thumbnailUrl,
+                    description: channel.description ? 
+                        // Trim long descriptions
+                        (channel.description.length > 200 ? 
+                            channel.description.substring(0, 197) + '...' : 
+                            channel.description) : 
+                        '',
+                    profilePicture: channel.profilePicture,
                     averageRating: parseFloat(averageRating.toFixed(1)),
                     totalRatings: channel.totalRatings
                 };
