@@ -8,6 +8,7 @@ YouRate API allows users to:
 - Search for YouTube channels/creators
 - View detailed information about YouTube creators
 - Submit and retrieve ratings and comments for YouTube creators
+- Get a sorted list of top-rated creators with pagination support
 
 The application is built using serverless architecture on AWS with infrastructure as code using Pulumi.
 
@@ -83,8 +84,8 @@ The API provides the following endpoints:
 - **Method**: GET
 - **Parameters**:
   - `q`: (required) Search query term
-  - `maxResults`: (optional) Number of results to return (default: 10)
-- **Example**: `GET /search?q=tech&maxResults=5`
+  - `maxResults`: (optional) Number of results to return (default: 5)
+- **Example**: `GET /search?q=tech&maxResults=10`
 
 ### Get Creator Profile
 - **Endpoint**: `/profile`
@@ -110,11 +111,67 @@ The API provides the following endpoints:
   {
     "channelId": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
     "rating": 5,
-    "comment": "Great educational content!"
+    "comment": "Great educational content!",
+    "channelTitle": "Google Developers",
+    "thumbnailUrl": "https://yt3.googleusercontent.com/example.jpg",
+    "description": "The official YouTube channel for Google Developers",
+    "profilePicture": {
+      "default": "https://yt3.googleusercontent.com/default.jpg",
+      "medium": "https://yt3.googleusercontent.com/medium.jpg",
+      "high": "https://yt3.googleusercontent.com/high.jpg"
+    }
   }
   ```
 - **Required fields**: channelId, rating (1-5)
-- **Optional fields**: comment
+- **Optional fields**: comment, channelTitle, thumbnailUrl, description, profilePicture
+
+### Get Top Creators
+- **Endpoint**: `/top-creators`
+- **Method**: GET
+- **Parameters**:
+  - `limit`: (optional) Number of results to return (default: 10)
+  - `nextToken`: (optional) Pagination token for retrieving next set of results
+  - `minRatings`: (optional) Minimum number of ratings required (default: 1)
+- **Example**: `GET /top-creators?limit=20&minRatings=5`
+- **Response**:
+  ```json
+  {
+    "creators": [
+      {
+        "channelId": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+        "channelTitle": "Google Developers",
+        "thumbnailUrl": "https://yt3.googleusercontent.com/example.jpg",
+        "description": "The official YouTube channel for Google Developers...",
+        "profilePicture": {
+          "default": "https://yt3.googleusercontent.com/default.jpg",
+          "medium": "https://yt3.googleusercontent.com/medium.jpg",
+          "high": "https://yt3.googleusercontent.com/high.jpg"
+        },
+        "averageRating": 4.9,
+        "totalRatings": 25
+      }
+    ],
+    "total": 50,
+    "count": 1,
+    "minRatings": 5,
+    "nextToken": "eyJjaGFubmVsSWQiOiJVQzEyMzQ1Njc4OSJ9..."
+  }
+  ```
+
+## Pagination
+
+For endpoints that return potentially large result sets (`/top-creators` and `/ratings`), pagination is implemented using the following pattern:
+
+1. Make an initial request without a `nextToken`
+2. If more results are available, the response will contain a `nextToken` field
+3. Use this token in a subsequent request to retrieve the next set of results
+4. Continue until no `nextToken` is returned, indicating you've reached the end of the results
+
+Example paginated requests:
+```
+GET /top-creators?limit=10
+GET /top-creators?limit=10&nextToken=eyJjaGFubmVsSWQiOiJVQzEyMzQ1Njc4OSJ9...
+```
 
 ## Development
 
@@ -124,6 +181,7 @@ The API provides the following endpoints:
   - `youtubeSearchHandler.js`: Handles YouTube channel search requests
   - `creatorProfile.js`: Handles creator profile data requests
   - `ratings.js`: Handles rating submissions and retrievals
+  - `topCreators.js`: Handles requests for top-rated creators
 - **build.js**: Script to bundle Lambda functions with dependencies
 - **index.js**: Pulumi infrastructure code
 - **.env**: Environment variables (not committed to repo)
@@ -136,6 +194,16 @@ Example using AWS CLI:
 ```
 aws lambda invoke --function-name youtubeSearchFunction --payload '{"queryStringParameters":{"q":"tech"}}' output.json
 ```
+
+### Creator Media Storage
+
+The API now supports storing and retrieving creator metadata:
+
+- **Thumbnails**: Store channel thumbnail URLs when submitting ratings
+- **Profile Pictures**: Store profile pictures at various resolutions
+- **Descriptions**: Store channel descriptions for display in UI
+
+This allows the `/top-creators` endpoint to return rich media without requiring additional API calls.
 
 ## Troubleshooting
 
