@@ -143,6 +143,21 @@ const topCreatorsFunction = new aws.lambda.Function('topCreatorsFunction', {
     },
 });
 
+// Create Lambda function for recent ratings
+const recentRatingsFunction = new aws.lambda.Function('recentRatingsFunction', {
+    code: new pulumi.asset.FileArchive('./dist/lambda-package.zip'),
+    role: lambdaRole.arn,
+    handler: 'recentRatings.handler',
+    runtime: 'nodejs18.x',
+    timeout: 30,
+    memorySize: 256,
+    environment: {
+        variables: {
+            RATINGS_TABLE_NAME: creatorRatingsTable.name,
+        },
+    },
+});
+
 // Create API Gateway for all endpoints
 const api = new aws.apigateway.RestApi('youtubeApi', {
     description: 'YouTube Creator API',
@@ -176,6 +191,13 @@ const topCreatorsResource = new aws.apigateway.Resource('topCreatorsResource', {
     restApi: api.id,
     parentId: api.rootResourceId,
     pathPart: 'top-creators',
+});
+
+// Create resource for recent ratings endpoint
+const recentRatingsResource = new aws.apigateway.Resource('recentRatingsResource', {
+    restApi: api.id,
+    parentId: api.rootResourceId,
+    pathPart: 'recent-ratings',
 });
 
 // Create methods for each endpoint
@@ -223,6 +245,14 @@ const getTopCreatorsMethod = new aws.apigateway.Method('getTopCreatorsMethod', {
     authorization: 'NONE',
 });
 
+// Add method for recent ratings endpoint
+const getRecentRatingsMethod = new aws.apigateway.Method('getRecentRatingsMethod', {
+    restApi: api.id,
+    resourceId: recentRatingsResource.id,
+    httpMethod: 'GET',
+    authorization: 'NONE',
+});
+
 // Create integrations for each method
 const searchIntegration = new aws.apigateway.Integration('searchIntegration', {
     restApi: api.id,
@@ -241,6 +271,16 @@ const topCreatorsIntegration = new aws.apigateway.Integration('topCreatorsIntegr
     integrationHttpMethod: 'POST',
     type: 'AWS_PROXY',
     uri: topCreatorsFunction.invokeArn,
+});
+
+// Add integration for recent ratings endpoint
+const recentRatingsIntegration = new aws.apigateway.Integration('recentRatingsIntegration', {
+    restApi: api.id,
+    resourceId: recentRatingsResource.id,
+    httpMethod: getRecentRatingsMethod.httpMethod,
+    integrationHttpMethod: 'POST',
+    type: 'AWS_PROXY',
+    uri: recentRatingsFunction.invokeArn,
 });
 
 const getRatingsIntegration = new aws.apigateway.Integration('getRatingsIntegration', {
@@ -345,6 +385,14 @@ const topCreatorsLambdaPermission = new aws.lambda.Permission('topCreatorsLambda
     sourceArn: pulumi.interpolate`${api.executionArn}/*/*`,
 });
 
+// Add Lambda permission for recent ratings function
+const recentRatingsLambdaPermission = new aws.lambda.Permission('recentRatingsLambdaPermission', {
+    action: 'lambda:InvokeFunction',
+    function: recentRatingsFunction,
+    principal: 'apigateway.amazonaws.com',
+    sourceArn: pulumi.interpolate`${api.executionArn}/*/*`,
+});
+
 // Create API deployment
 const deployment = new aws.apigateway.Deployment('apiDeployment', {
     restApi: api.id,
@@ -360,6 +408,8 @@ const deployment = new aws.apigateway.Deployment('apiDeployment', {
             profileIntegration.id,
             getTopCreatorsMethod.id,
             topCreatorsIntegration.id,
+            getRecentRatingsMethod.id,
+            recentRatingsIntegration.id,
             optionsRatingsMethod.id,
             optionsRatingsIntegration.id,
             optionsMethodResponse.id,
@@ -378,6 +428,8 @@ const deployment = new aws.apigateway.Deployment('apiDeployment', {
         profileIntegration,
         getTopCreatorsMethod,
         topCreatorsIntegration,
+        getRecentRatingsMethod,
+        recentRatingsIntegration,
         optionsRatingsMethod,
         optionsRatingsIntegration,
         optionsMethodResponse,
@@ -409,4 +461,5 @@ exports.searchApiUrl = pulumi.interpolate`${stage.invokeUrl}/search`;
 exports.ratingsApiUrl = pulumi.interpolate`${stage.invokeUrl}/ratings`;
 exports.profileApiUrl = pulumi.interpolate`${stage.invokeUrl}/profile`;
 exports.topCreatorsApiUrl = pulumi.interpolate`${stage.invokeUrl}/top-creators`;
+exports.recentRatingsApiUrl = pulumi.interpolate`${stage.invokeUrl}/recent-ratings`;
 exports.ratingsTableName = creatorRatingsTable.name;
