@@ -19,28 +19,32 @@ exports.handler = async (event) => {
         // Parse query parameters from the event, handling different API Gateway event formats
         let searchQuery = '';
         let maxResults = 5;
+        let pageToken = null;
         
         if (event.queryStringParameters) {
             // Standard API Gateway format
             searchQuery = event.queryStringParameters.q || '';
             maxResults = parseInt(event.queryStringParameters.maxResults, 10) || 5;
+            pageToken = event.queryStringParameters.pageToken || null;
         } else if (event.q) {
             // Direct invocation format
             searchQuery = event.q;
             maxResults = event.maxResults || 5;
+            pageToken = event.pageToken || null;
         } else if (typeof event === 'string') {
             // Handle string input (sometimes API Gateway sends the body as string)
             try {
                 const parsedEvent = JSON.parse(event);
                 searchQuery = parsedEvent.q || '';
                 maxResults = parsedEvent.maxResults || 5;
+                pageToken = parsedEvent.pageToken || null;
             } catch (e) {
                 // If not valid JSON, use the string as query
                 searchQuery = event;
             }
         }
         
-        console.log('Processing search query:', searchQuery, 'and maxResults:', maxResults);
+        console.log('Processing search query:', searchQuery, 'maxResults:', maxResults, 'pageToken:', pageToken);
         
         if (!searchQuery) {
             return formatResponse(400, { error: 'Search query (q) is required' });
@@ -55,15 +59,23 @@ exports.handler = async (event) => {
         
         console.log('Calling YouTube API...');
         
+        // Build YouTube API parameters
+        const youtubeParams = {
+            part: 'snippet',
+            type: 'channel',
+            q: searchQuery,
+            maxResults: maxResults,
+            key: API_KEY
+        };
+        
+        // Add pageToken if provided for pagination
+        if (pageToken) {
+            youtubeParams.pageToken = pageToken;
+        }
+        
         // Call YouTube API
         const response = await axios.get('https://www.googleapis.com/youtube/v3/search', {
-            params: {
-                part: 'snippet',
-                type: 'channel',
-                q: searchQuery,
-                maxResults: maxResults,
-                key: API_KEY
-            }
+            params: youtubeParams
         });
 
         console.log('YouTube API response received');
@@ -72,7 +84,7 @@ exports.handler = async (event) => {
         const youtubeResults = response.data.items || [];
         const enrichedResults = await addRatingsToResults(youtubeResults);
         
-        // Return response with ratings data included
+        // Return response with ratings data included and pagination tokens
         const result = {
             ...response.data,
             items: enrichedResults
