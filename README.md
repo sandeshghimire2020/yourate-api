@@ -9,6 +9,8 @@ YouRate API allows users to:
 - View detailed information about YouTube creators
 - Submit and retrieve ratings and comments for YouTube creators
 - Get a sorted list of top-rated creators with pagination support
+- Fetch the most recent ratings across all creators
+- Apply strict email validation and rate limiting controls
 
 The application is built using serverless architecture on AWS with infrastructure as code using Pulumi.
 
@@ -85,7 +87,9 @@ The API provides the following endpoints:
 - **Parameters**:
   - `q`: (required) Search query term
   - `maxResults`: (optional) Number of results to return (default: 5)
+  - `pageToken`: (optional) Token for fetching next page of results
 - **Example**: `GET /search?q=tech&maxResults=10`
+- **Example with pagination**: `GET /search?q=mrbeast&maxResults=5&pageToken=CAUQAA`
 
 ### Get Creator Profile
 - **Endpoint**: `/profile`
@@ -113,6 +117,7 @@ The API provides the following endpoints:
     "rating": 5,
     "comment": "Great educational content!",
     "channelTitle": "Google Developers",
+    "email": "user@gmail.com",
     "thumbnailUrl": "https://yt3.googleusercontent.com/example.jpg",
     "description": "The official YouTube channel for Google Developers",
     "profilePicture": {
@@ -123,7 +128,11 @@ The API provides the following endpoints:
   }
   ```
 - **Required fields**: channelId, rating (1-5)
-- **Optional fields**: comment, channelTitle, thumbnailUrl, description, profilePicture
+- **Optional fields**: comment, email, channelTitle, thumbnailUrl, description, profilePicture
+- **Rate Limits**: 
+  - Each email address can only submit 1 rating per channel
+  - Each IP address can submit a maximum of 2 ratings per channel
+- **Email Validation**: Only accepts emails from recognized providers (Gmail, Yahoo, Outlook, etc.)
 
 ### Get Top Creators
 - **Endpoint**: `/top-creators`
@@ -158,9 +167,33 @@ The API provides the following endpoints:
   }
   ```
 
+### Get Recent Ratings
+- **Endpoint**: `/recent-ratings`
+- **Method**: GET
+- **Parameters**:
+  - `limit`: (optional) Number of recent ratings to return (default: 3)
+- **Example**: `GET /recent-ratings?limit=5`
+- **Response**:
+  ```json
+  {
+    "count": 3,
+    "ratings": [
+      {
+        "channelId": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+        "channelTitle": "Google Developers",
+        "rating": 5,
+        "comment": "Great tutorials!",
+        "timestamp": "2025-05-22T14:30:00.000Z",
+        "thumbnailUrl": "https://yt3.googleusercontent.com/example.jpg"
+      },
+      // More ratings here...
+    ]
+  }
+  ```
+
 ## Pagination
 
-For endpoints that return potentially large result sets (`/top-creators` and `/ratings`), pagination is implemented using the following pattern:
+For endpoints that return potentially large result sets (`/top-creators`, `/ratings`, and `/search`), pagination is implemented using the following pattern:
 
 1. Make an initial request without a `nextToken`
 2. If more results are available, the response will contain a `nextToken` field
@@ -173,15 +206,43 @@ GET /top-creators?limit=10
 GET /top-creators?limit=10&nextToken=eyJjaGFubmVsSWQiOiJVQzEyMzQ1Njc4OSJ9...
 ```
 
+## Security Features
+
+The API implements several security features to prevent abuse:
+
+### Email Validation
+
+Rating submissions that include an email address undergo strict validation:
+
+- Only accepts emails from recognized providers (Gmail, Yahoo, Outlook, major companies, educational institutions)
+- Blocks disposable, temporary, or obviously fake email domains
+- Prevents numeric variations of blocked domains (e.g., test1.com, test2.com, etc.)
+
+### Rate Limiting
+
+To prevent abuse and ensure fair usage:
+
+1. **Per-User Email Limits**: Each email address can only submit one rating per YouTube channel
+2. **Per-Device Limits**: Each IP address can submit a maximum of 2 ratings per YouTube channel
+3. **IP-Based Tracking**: All rating submissions track the source IP address to detect and prevent abuse
+
+### Error Messages
+
+When limits are reached or invalid data is provided, the API returns appropriate HTTP status codes:
+
+- `400 Bad Request`: Invalid input, such as non-recognized email domain
+- `429 Too Many Requests`: Rate limit exceeded (max ratings per IP for a creator)
+
 ## Development
 
 ### Project Structure
 
 - **src/**: Contains Lambda function handlers
-  - `youtubeSearchHandler.js`: Handles YouTube channel search requests
+  - `youtubeSearchHandler.js`: Handles YouTube channel search requests with pagination
   - `creatorProfile.js`: Handles creator profile data requests
-  - `ratings.js`: Handles rating submissions and retrievals
+  - `ratings.js`: Handles rating submissions and retrievals with validation and rate limiting
   - `topCreators.js`: Handles requests for top-rated creators
+  - `recentRatings.js`: Handles requests for most recent ratings across all channels
 - **build.js**: Script to bundle Lambda functions with dependencies
 - **index.js**: Pulumi infrastructure code
 - **.env**: Environment variables (not committed to repo)
@@ -217,6 +278,8 @@ Common issues:
    ```
 
 3. **API Key Issues**: Verify your YouTube API key is correct and has proper permissions.
+
+4. **Email Validation Errors**: If legitimate emails are being rejected, review the email validation settings in `ratings.js`.
 
 ## License
 
