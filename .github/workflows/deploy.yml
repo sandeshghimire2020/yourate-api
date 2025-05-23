@@ -172,14 +172,19 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
           
-      - name: Install Pulumi CLI
+      - name: Setup Pulumi
         run: |
+          # Remove any existing Pulumi installation to avoid PATH conflicts
+          sudo rm -f /usr/local/bin/pulumi
+          
+          # Install Pulumi CLI and ensure it's in the PATH
           curl -fsSL https://get.pulumi.com | sh
-          export PATH=$PATH:$HOME/.pulumi/bin
           echo "$HOME/.pulumi/bin" >> $GITHUB_PATH
-      
-      - name: Select Pulumi stack
-        run: pulumi stack select ${{ needs.config.outputs.environment }}
+          
+          # Verify installation and select stack
+          export PATH="$HOME/.pulumi/bin:$PATH"
+          pulumi version
+          pulumi stack select ${{ needs.config.outputs.environment }}
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
           
@@ -187,5 +192,6 @@ jobs:
         uses: pulumi/actions@v4
         with:
           command: up
+          stack-name: ${{ needs.config.outputs.environment }}
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
