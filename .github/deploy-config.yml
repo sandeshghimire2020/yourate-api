@@ -7,7 +7,7 @@ FEATURE_BUILD_ENABLED: true
 
 # DEPLOYMENT SETTINGS
 # Set to true to enable deployment, false for build-only
-DEPLOYMENT_ENABLED: false
+DEPLOYMENT_ENABLED: true
 
 # ENVIRONMENT SETTINGS
 # Valid values: dev, qa, stg
@@ -15,4 +15,4 @@ DEFAULT_ENVIRONMENT: dev
 
 # Feature branch deployment
 # Set to true to allow feature branch deployments
-FEATURE_DEPLOY_ENABLED: false
+FEATURE_DEPLOY_ENABLED: true
