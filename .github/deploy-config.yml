@@ -7,7 +7,7 @@ FEATURE_BUILD_ENABLED: true
 
 # DEPLOYMENT SETTINGS
 # Set to true to enable deployment, false for build-only
-DEPLOYMENT_ENABLED: true
+DEPLOYMENT_ENABLED: false
 
 # ENVIRONMENT SETTINGS
 # Valid values: dev, qa, stg
