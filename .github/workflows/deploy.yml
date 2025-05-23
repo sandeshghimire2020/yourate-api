@@ -1,0 +1,197 @@
+name: YouRate API CI/CD
+
+on:
+  push:
+    branches: 
+      - develop
+      - feature/**
+  workflow_dispatch:
+    inputs:
+      build-only:
+        description: 'Just build without deploying'
+        type: boolean
+        default: false
+      feature-deploy:
+        description: 'Deploy feature branch (ignored for develop branch)'
+        type: boolean
+        default: false
+      environment:
+        description: 'Target environment'
+        type: choice
+        options:
+          - dev
+          - qa
+          - stg
+        default: 'dev'
+
+jobs:
+  config:
+    runs-on: ubuntu-latest
+    outputs:
+      feature_build: ${{ steps.read_config.outputs.feature_build }}
+      deployment: ${{ steps.read_config.outputs.deployment }}
+      environment: ${{ steps.read_config.outputs.environment }}
+      feature_deploy: ${{ steps.read_config.outputs.feature_deploy }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Read deployment config
+        id: read_config
+        run: |
+          # Read config file if it exists
+          if [ -f .github/deploy-config.yml ]; then
+            # Extract values with default fallbacks
+            FEATURE_BUILD=$(grep 'FEATURE_BUILD_ENABLED:' .github/deploy-config.yml | awk '{print $2}' || echo "true")
+            DEPLOYMENT=$(grep 'DEPLOYMENT_ENABLED:' .github/deploy-config.yml | awk '{print $2}' || echo "true")
+            DEFAULT_ENV=$(grep 'DEFAULT_ENVIRONMENT:' .github/deploy-config.yml | awk '{print $2}' || echo "dev")
+            FEATURE_DEPLOY=$(grep 'FEATURE_DEPLOY_ENABLED:' .github/deploy-config.yml | awk '{print $2}' || echo "false")
+            
+            # Override with manual inputs if provided
+            if [ "${{ github.event.inputs.build-only }}" == "true" ]; then
+              DEPLOYMENT="false"
+            fi
+            
+            if [ "${{ github.event.inputs.feature-deploy }}" == "true" ]; then
+              FEATURE_DEPLOY="true"
+            fi
+            
+            if [ "${{ github.event.inputs.environment }}" != "" ]; then
+              DEFAULT_ENV="${{ github.event.inputs.environment }}"
+            fi
+            
+            # Set outputs
+            echo "feature_build=${FEATURE_BUILD}" >> $GITHUB_OUTPUT
+            echo "deployment=${DEPLOYMENT}" >> $GITHUB_OUTPUT 
+            echo "environment=${DEFAULT_ENV}" >> $GITHUB_OUTPUT
+            echo "feature_deploy=${FEATURE_DEPLOY}" >> $GITHUB_OUTPUT
+          else
+            # Fallback if config doesn't exist
+            echo "feature_build=true" >> $GITHUB_OUTPUT
+            echo "deployment=true" >> $GITHUB_OUTPUT
+            echo "environment=dev" >> $GITHUB_OUTPUT
+            echo "feature_deploy=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Print configuration for debugging
+          echo "Using configuration:"
+          echo "- feature_build: $(cat $GITHUB_OUTPUT | grep feature_build | cut -d= -f2)"
+          echo "- deployment: $(cat $GITHUB_OUTPUT | grep deployment | cut -d= -f2)"
+          echo "- environment: $(cat $GITHUB_OUTPUT | grep environment | cut -d= -f2)"
+          echo "- feature_deploy: $(cat $GITHUB_OUTPUT | grep feature_deploy | cut -d= -f2)"
+  
+  build:
+    needs: config
+    runs-on: ubuntu-latest
+    # Always build develop branch or when manually triggered
+    # Only build feature branches if config enables it
+    if: |
+      github.ref == 'refs/heads/develop' || 
+      github.event_name == 'workflow_dispatch' ||
+      (startsWith(github.ref, 'refs/heads/feature/') && needs.config.outputs.feature_build == 'true')
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Create .env file with secrets
+        run: |
+          echo "# YouTube API Credentials" > .env
+          echo "YOUTUBE_API_KEY=${{ secrets.YOUTUBE_API_KEY }}" >> .env
+          echo "" >> .env
+          echo "# AWS Configuration" >> .env
+          echo "AWS_REGION=us-east-1" >> .env
+          echo "RATINGS_TABLE_NAME=creatorRatings" >> .env
+          echo "" >> .env
+          echo "# Other Configuration" >> .env
+          
+          # Set API stage based on environment
+          echo "API_STAGE_NAME=${{ needs.config.outputs.environment }}" >> .env
+      
+      - name: Build Lambda package
+        run: npm run build
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: lambda-build
+          path: dist/
+          retention-days: 1
+
+  deploy:
+    needs: [config, build]
+    runs-on: ubuntu-latest
+    # Skip deployment if deployment is disabled in config
+    # For feature branches, only deploy if feature-deploy is true in config
+    if: |
+      needs.config.outputs.deployment == 'true' && 
+      (
+        github.ref == 'refs/heads/develop' || 
+        (startsWith(github.ref, 'refs/heads/feature/') && needs.config.outputs.feature_deploy == 'true')
+      )
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: lambda-build
+          path: dist/
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Create .env file with secrets
+        run: |
+          echo "# YouTube API Credentials" > .env
+          echo "YOUTUBE_API_KEY=${{ secrets.YOUTUBE_API_KEY }}" >> .env
+          echo "" >> .env
+          echo "# AWS Configuration" >> .env
+          echo "AWS_REGION=us-east-1" >> .env
+          echo "RATINGS_TABLE_NAME=creatorRatings" >> .env
+          echo "" >> .env
+          echo "# Other Configuration" >> .env
+          echo "API_STAGE_NAME=${{ needs.config.outputs.environment }}" >> .env
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+          
+      - name: Setup Pulumi
+        run: |
+          # Remove any existing Pulumi installation to avoid PATH conflicts
+          sudo rm -f /usr/local/bin/pulumi
+          
+          # Install Pulumi CLI and ensure it's in the PATH
+          curl -fsSL https://get.pulumi.com | sh
+          echo "$HOME/.pulumi/bin" >> $GITHUB_PATH
+          
+          # Verify installation and select stack
+          export PATH="$HOME/.pulumi/bin:$PATH"
+          pulumi version
+          pulumi stack select ${{ needs.config.outputs.environment }}
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          
+      - name: Deploy with Pulumi
+        uses: pulumi/actions@v4
+        with:
+          command: up
+          stack-name: ${{ needs.config.outputs.environment }}
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
