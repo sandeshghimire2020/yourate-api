@@ -33,7 +33,7 @@ jobs:
       environment: ${{ steps.read_config.outputs.environment }}
       feature_deploy: ${{ steps.read_config.outputs.feature_deploy }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Read deployment config
         id: read_config
@@ -90,10 +90,10 @@ jobs:
       (startsWith(github.ref, 'refs/heads/feature/') && needs.config.outputs.feature_build == 'true')
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
           
@@ -118,7 +118,7 @@ jobs:
         run: npm run build
       
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: lambda-build
           path: dist/
@@ -137,16 +137,16 @@ jobs:
       )
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Download build artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: lambda-build
           path: dist/
       
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
           
@@ -166,7 +166,7 @@ jobs:
           echo "API_STAGE_NAME=${{ needs.config.outputs.environment }}" >> .env
       
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
