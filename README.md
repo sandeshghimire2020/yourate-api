@@ -22,6 +22,7 @@ The application is built using serverless architecture on AWS with infrastructur
 - **Infrastructure**: Pulumi (Infrastructure as Code)
 - **Language**: JavaScript
 - **Dependencies**: axios, aws-sdk, dotenv
+- **CI/CD**: GitHub Actions
 
 ## Setup Instructions
 
@@ -32,7 +33,7 @@ The application is built using serverless architecture on AWS with infrastructur
 - Pulumi CLI installed
 - YouTube Data API key
 
-### Environment Setup
+### Environment and Secrets Setup
 
 1. Clone the repository:
    ```
@@ -45,37 +46,49 @@ The application is built using serverless architecture on AWS with infrastructur
    npm install
    ```
 
-3. Create a `.env` file based on the sample:
+3. Create a `.env` file based on the example:
    ```
-   cp .env.sample .env
+   cp .env.example .env
    ```
 
-4. Update the `.env` file with your YouTube API key:
+4. Add your YouTube API key to the `.env` file for local development:
    ```
-   # YouTube API Credentials
    YOUTUBE_API_KEY=your_youtube_api_key_here
-
-   # AWS Configuration
-   AWS_REGION=us-east-1
-   RATINGS_TABLE_NAME=creatorRatings
-
-   # Other Configuration
-   API_STAGE_NAME=v1
    ```
 
-### Deployment
+5. **For Production Deployment**: Add the following secrets to your GitHub repository:
+   - Go to your GitHub repository → Settings → Secrets and variables → Actions
+   - Add these repository secrets:
+     - `YOUTUBE_API_KEY`: Your YouTube API key
+     - `AWS_ACCESS_KEY_ID`: Your AWS access key ID
+     - `AWS_SECRET_ACCESS_KEY`: Your AWS secret access key
+     - `PULUMI_ACCESS_TOKEN`: Your Pulumi access token
+
+   These secrets will be used by the GitHub Actions workflow for secure deployment.
+
+### Local Development
 
 1. Build the Lambda package with dependencies:
    ```
    npm run build
    ```
 
-2. Deploy the infrastructure:
+2. Deploy the infrastructure (local development only):
    ```
    npm run deploy
    ```
 
-3. After deployment, Pulumi will output the API endpoints.
+### Automated Deployment
+
+This project is configured with GitHub Actions for CI/CD:
+
+1. Push changes to the `main` branch to trigger automatic deployment
+2. The workflow will:
+   - Build the Lambda package
+   - Securely inject the YouTube API key from GitHub Secrets
+   - Deploy infrastructure using Pulumi
+
+You can also manually trigger a deployment from the "Actions" tab in your GitHub repository.
 
 ## API Endpoints
 
@@ -288,3 +301,99 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+## CI/CD Pipeline
+
+This project uses GitHub Actions for continuous integration and deployment with simplified configuration options for developers:
+
+### Automated Workflow
+
+- **Branch Targeting**:
+  - `develop` branch: Always builds and deploys automatically
+  - `feature/**` branches: Only builds/deploys when explicitly enabled
+
+### Developer-Friendly Controls
+
+You can manually trigger the workflow with these simple options:
+
+1. Go to the GitHub repository → Actions → "YouRate API CI/CD" → "Run workflow"
+2. Configure your deployment with three easy options:
+
+   - **Build Only**: Enable this to build without deploying (verify your code builds correctly)
+   - **Feature Deploy**: Enable to deploy code from a feature branch (ignored for develop branch)
+   - **Environment**: Select target environment (`dev`, `qa`, or `stg`)
+
+### Workflow Examples
+
+| Scenario                           | build-only | feature-deploy | environment |
+|------------------------------------|------------|----------------|-------------|
+| Just build, don't deploy           | ✓          | -              | -           |
+| Deploy feature branch to dev       | -          | ✓              | dev         |
+| Deploy feature branch to staging   | -          | ✓              | stg         |
+| Deploy develop branch to QA        | -          | -              | qa          |
+
+### Environment Management
+
+The pipeline supports multiple deployment environments:
+
+| Environment | Description       | When to Use                          |
+|-------------|-------------------|--------------------------------------|
+| `dev`       | Development       | Default for testing new features     |
+| `qa`        | Quality Assurance | For pre-release testing              |
+| `stg`       | Staging           | Final verification before production |
+
+### Creating Environments
+
+To create a new environment stack:
+
+```bash
+# Initialize the stack (run once per environment)
+pulumi stack init [environment-name]
+
+# Set config values specific to the environment
+pulumi config set aws:region us-east-1
+```
+
+## Simplified Deployment Configuration
+
+For easier CI/CD management, this project uses a configuration file approach that allows developers to control deployment settings without modifying the workflow files.
+
+### Using the Configuration File
+
+1. Edit the file `.github/deploy-config.yml` to control CI/CD behavior
+2. The following settings can be configured:
+
+```yaml
+# BUILD SETTINGS
+# Set to true to build feature branches, false to only build develop branch
+FEATURE_BUILD_ENABLED: true
+
+# DEPLOYMENT SETTINGS
+# Set to true to enable deployment, false for build-only
+DEPLOYMENT_ENABLED: true
+
+# ENVIRONMENT SETTINGS
+# Valid values: dev, qa, stg
+DEFAULT_ENVIRONMENT: dev
+
+# Feature branch deployment
+# Set to true to allow feature branch deployments
+FEATURE_DEPLOY_ENABLED: false
+```
+
+### Common Configuration Scenarios
+
+| Scenario | Configuration Changes |
+|----------|----------------------|
+| Build & deploy to QA | `DEFAULT_ENVIRONMENT: qa` |
+| Build only, no deployment | `DEPLOYMENT_ENABLED: false` |
+| Deploy feature branches | `FEATURE_DEPLOY_ENABLED: true` |
+| Skip feature branch builds | `FEATURE_BUILD_ENABLED: false` |
+
+These settings provide defaults that apply to all builds. You can still override them using the manual workflow trigger options.
+
+### Security
+
+- AWS credentials, API keys, and other secrets are stored in GitHub Secrets
+- Environment variables are automatically injected based on target environment
+- Credentials never appear in logs or code repositories

@@ -1,0 +1,18 @@
+# YouRate API Deployment Configuration
+# Edit this file to control how the CI/CD pipeline behaves
+
+# BUILD SETTINGS
+# Set to true to build feature branches, false to only build develop branch
+FEATURE_BUILD_ENABLED: true
+
+# DEPLOYMENT SETTINGS
+# Set to true to enable deployment, false for build-only
+DEPLOYMENT_ENABLED: false
+
+# ENVIRONMENT SETTINGS
+# Valid values: dev, qa, stg
+DEFAULT_ENVIRONMENT: dev
+
+# Feature branch deployment
+# Set to true to allow feature branch deployments
+FEATURE_DEPLOY_ENABLED: false
